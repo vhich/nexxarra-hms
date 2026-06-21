@@ -66,7 +66,7 @@ requirements.txt    # Dependencies
     python manage.py runserver
 
 
- # 📖 Documentation
+ ## 📖 Documentation
 See the docs/ folder for:
 
 architecture.md → system design notes
@@ -75,7 +75,7 @@ workflows.md → patient & clinic workflows
 
 compliance.md → security & legal compliance protocols
 
-# 🧭 Roadmap
+## 🧭 Roadmap
 Add React frontend
 
 Implement role-based dashboards
@@ -84,6 +84,6 @@ Integrate external APIs for clinic license verification
 
 Deploy to cloud with secure CI/CD
 
-# ⚠️ Disclaimer
+## ⚠️ Disclaimer
 This project is for educational and portfolio purposes.
 In real-world healthcare deployments, additional compliance with local laws (e.g., NDPA in Nigeria) and international standards (HIPAA, GDPR) is required.
