@@ -1,3 +1,165 @@
 from django.db import models
+from django.contrib.auth.models import User
 
-# Create your models here.
+class SoftDeleteQuerySet(models.QuerySet):
+    def delete(self):
+        # Override delete to perform soft delete
+        return super().update(is_active=False)
+
+    def hard_delete(self):
+        # Explicit hard delete (rarely used, e.g., test cleanup)
+        return super().delete()
+
+    def active(self):
+        return self.filter(is_active=True)
+
+    def inactive(self):
+        return self.filter(is_active=False)
+
+
+class SoftDeleteManager(models.Manager):
+    def get_queryset(self):
+        # Default: only active records
+        return SoftDeleteQuerySet(self.model, using=self._db).filter(is_active=True)
+
+    def all_objects(self):
+        # Explicit: include both active + inactive
+        return SoftDeleteQuerySet(self.model, using=self._db)
+    
+
+class Clinic(models.Model):
+    name = models.CharField(max_length=255)
+    address = models.TextField()
+    phone = models.CharField(max_length=20)
+    email = models.EmailField()
+
+    # Verification & compliance
+    license_number = models.CharField(max_length=100, unique=True)
+    accreditation_certificate = models.FileField(upload_to="clinic_docs/", null=True, blank=True)
+    tax_id = models.CharField(max_length=100, null=True, blank=True)
+    proof_of_address = models.FileField(upload_to="clinic_docs/", null=True, blank=True)
+
+    verified = models.BooleanField(default=False)
+    verification_notes = models.TextField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteManager()
+
+
+class Department(models.Model):
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+
+
+class StaffProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
+    role = models.CharField(max_length=50)  # Doctor, Nurse, Receptionist
+    department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL)
+    is_active = models.BooleanField(default=True)
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteManager()
+
+
+class AuditLog(models.Model):
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    action = models.CharField(max_length=255)
+    target_type = models.CharField(max_length=100)
+    target_id = models.IntegerField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    device_metadata = models.TextField(null=True, blank=True)
+
+
+class Patient(models.Model):
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    dob = models.DateField()
+    phone = models.CharField(max_length=20)
+    email = models.EmailField(null=True, blank=True)
+    consent_signed = models.BooleanField(default=False)  # legal consent tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteManager()
+
+
+class Appointment(models.Model):
+    patient = models.ForeignKey(Patient, on_delete=models.PROTECT)
+    provider = models.ForeignKey(StaffProfile, on_delete=models.PROTECT)
+    department = models.ForeignKey(Department, on_delete=models.PROTECT)
+    date = models.DateTimeField()
+    status = models.CharField(max_length=50, default="Scheduled")
+
+
+class VitalSign(models.Model):
+    appointment = models.ForeignKey(Appointment, on_delete=models.CASCADE)
+    blood_pressure = models.CharField(max_length=20)
+    temperature = models.FloatField()
+    pulse = models.IntegerField()
+    weight = models.FloatField()
+    height = models.FloatField()
+    notes = models.TextField()
+
+
+class Consultation(models.Model):
+    appointment = models.ForeignKey(Appointment, on_delete=models.PROTECT)
+    doctor = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True)
+    notes = models.TextField()
+    diagnosis = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteManager()
+
+
+class Prescription(models.Model):
+    consultation = models.ForeignKey(Consultation, on_delete=models.PROTECT)
+    medication = models.CharField(max_length=255)
+    dosage = models.CharField(max_length=100)
+    frequency = models.CharField(max_length=100)
+    duration = models.CharField(max_length=100)
+    instructions = models.TextField()
+    is_active = models.BooleanField(default=True)
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteManager()
+
+class ServiceCatalogItem(models.Model):
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+
+class Invoice(models.Model):
+    patient = models.ForeignKey(Patient, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, default="Draft")
+    is_active = models.BooleanField(default=True)
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteManager()
+
+
+class InvoiceItem(models.Model):
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE)
+    service = models.ForeignKey(ServiceCatalogItem, on_delete=models.PROTECT)
+    quantity = models.IntegerField(default=1)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+
+class Payment(models.Model):
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    method = models.CharField(max_length=50)  # Cash, Card, Transfer
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+
