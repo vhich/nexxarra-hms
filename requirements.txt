@@ -1,0 +1,18 @@
+# Core framework
+Django
+
+# REST API support
+djangorestframework
+
+# Database driver (PostgreSQL)
+psycopg2-binary
+
+# Environment variable management
+python-decouple
+
+# Security & authentication
+django-cors-headers
+djangorestframework-simplejwt
+
+# Utilities
+Pillow # for image/file uploads
