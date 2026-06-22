@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import MinLengthValidator, RegexValidator, FileExtensionValidator
 
 class SoftDeleteQuerySet(models.QuerySet):
     def delete(self):
@@ -25,28 +26,66 @@ class SoftDeleteManager(models.Manager):
     def all_objects(self):
         # Explicit: include both active + inactive
         return SoftDeleteQuerySet(self.model, using=self._db)
-    
+
+# Reusable validators for security and integrity
+phone_validator = RegexValidator(
+    regex=r'^\+?1?\d{9,13}$',
+    message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+)
+
+numeric_only_validator = RegexValidator(
+    regex=r'^\d+$',
+    message="This field must contain digits only."
+)
+
+# Restrict file uploads to PDFs and Images only to prevent malicious script execution
+allowed_docs_validator = FileExtensionValidator(
+    allowed_extensions=['jpg', 'jpeg', 'png'],
+    message="Only jpg, jpeg, png files are allowed."
+)
 
 class Clinic(models.Model):
     name = models.CharField(max_length=255)
     address = models.TextField()
-    phone = models.CharField(max_length=20)
+    
+    # Secure Phone: Validates actual phone formats, prevents injection strings
+    phone = models.CharField(max_length=20, validators=[phone_validator])
     email = models.EmailField()
 
     # Verification & compliance
     license_number = models.CharField(max_length=100, unique=True)
-    accreditation_certificate = models.FileField(upload_to="clinic_docs/", null=True, blank=True)
-    tax_id = models.CharField(max_length=100, null=True, blank=True)
-    proof_of_address = models.FileField(upload_to="clinic_docs/", null=True, blank=True)
+    
+    # FORCE FRONTEND REQUIREMENT: Removed null=True and blank=True so frontend MUST provide them
+    accreditation_certificate = models.FileField(
+        upload_to="clinic_docs/", 
+        validators=[allowed_docs_validator]
+    )
+    
+    # Strict Tax ID: Handled as string, but strictly validated for min/max length and digits only
+    tax_id = models.CharField(
+        max_length=100, 
+        unique=True,
+        validators=[MinLengthValidator(13), numeric_only_validator]
+    )
+    
+    proof_of_address = models.FileField(
+        upload_to="clinic_docs/", 
+        validators=[allowed_docs_validator]
+    )
 
+    # Internal verification (Keep blank/null here, frontend shouldn't touch these anyway)
     verified = models.BooleanField(default=False)
-    verification_notes = models.TextField(null=True, blank=True)
+    verification_notes = models.TextField(blank=True, default="") # Better practice than null=True for TextField
 
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
+    # Soft delete managers
     objects = SoftDeleteManager()
     all_objects = SoftDeleteManager()
+
+    def __str__(self):
+        return self.name
 
 
 class Department(models.Model):
