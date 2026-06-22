@@ -30,7 +30,7 @@ class SoftDeleteManager(models.Manager):
 # Reusable validators for security and integrity
 phone_validator = RegexValidator(
     regex=r'^\+?1?\d{9,13}$',
-    message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
+    message="Provide a valid phone number."
 )
 
 numeric_only_validator = RegexValidator(
@@ -45,32 +45,37 @@ allowed_docs_validator = FileExtensionValidator(
 )
 
 class Clinic(models.Model):
-    name = models.CharField(max_length=255)
-    address = models.TextField()
+    name = models.CharField(max_length=255, default="")
+    address = models.TextField(max_length=225, default="")
     
     # Secure Phone: Validates actual phone formats, prevents injection strings
-    phone = models.CharField(max_length=20, validators=[phone_validator])
-    email = models.EmailField()
+    phone = models.CharField(max_length=20, validators=[phone_validator], default="")
+    email = models.EmailField(max_length=100, default="")
 
     # Verification & compliance
-    license_number = models.CharField(max_length=100, unique=True)
+    license_number = models.CharField(max_length=100, unique=True, default="")
     
     # FORCE FRONTEND REQUIREMENT: Removed null=True and blank=True so frontend MUST provide them
     accreditation_certificate = models.FileField(
         upload_to="clinic_docs/", 
-        validators=[allowed_docs_validator]
+        validators=[allowed_docs_validator],
+        blank=True,
+        null=True
     )
     
     # Strict Tax ID: Handled as string, but strictly validated for min/max length and digits only
     tax_id = models.CharField(
         max_length=100, 
         unique=True,
-        validators=[MinLengthValidator(13), numeric_only_validator]
+        validators=[MinLengthValidator(13), numeric_only_validator],
+        default=""
     )
     
     proof_of_address = models.FileField(
-        upload_to="clinic_docs/", 
-        validators=[allowed_docs_validator]
+        upload_to="clinic_docs/",
+        validators=[allowed_docs_validator],
+        blank=True,
+        null=True
     )
 
     # Internal verification (Keep blank/null here, frontend shouldn't touch these anyway)
