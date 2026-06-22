@@ -5,3 +5,4 @@ __pycache__/
 /clinic_docs/
 .env
 .venv
+.vscode

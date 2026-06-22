@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
         "./.venv"
-    ]
+    ],
+    "postman.settings.dotenv-detection-notification-visibility": false
 }
