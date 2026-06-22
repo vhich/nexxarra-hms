@@ -1,6 +1,8 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, AbstractUser
 from django.core.validators import MinLengthValidator, RegexValidator, FileExtensionValidator
+
+from django.conf import settings
 
 class SoftDeleteQuerySet(models.QuerySet):
     def delete(self):
@@ -97,20 +99,30 @@ class Department(models.Model):
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
 
+class User(AbstractUser):
+    clinic = models.ForeignKey("Clinic", on_delete=models.CASCADE, null=True, blank=True)
+    role = models.CharField(max_length=50, choices=[
+        ("super_admin", "Super Admin"),
+        ("clinic_admin", "Clinic Admin"),
+        ("doctor", "Doctor"),
+        ("nurse", "Nurse"),
+        ("receptionist", "Receptionist"),
+    ])
+    # first_name, last_name, email, password already exist from AbstractUser
 
 class StaffProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
     role = models.CharField(max_length=50)  # Doctor, Nurse, Receptionist
-    department = models.ForeignKey(Department, null=True, blank=True, on_delete=models.SET_NULL)
-    is_active = models.BooleanField(default=True)
+    department = models.ManyToManyField(Department, blank=True)
+    is_active = models.BooleanField(default=False)
 
     objects = SoftDeleteManager()
     all_objects = SoftDeleteManager()
 
 
 class AuditLog(models.Model):
-    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     action = models.CharField(max_length=255)
     target_type = models.CharField(max_length=100)
     target_id = models.IntegerField()
