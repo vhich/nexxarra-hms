@@ -1,16 +1,15 @@
 from django.contrib.auth import get_user_model
-from django.utils.crypto import get_random_string
 
 User = get_user_model()
 
-def create_clinic_admin(email, clinic):
-    random_password = get_random_string(12)
+def create_user(username, email, random_password, role, phone, clinic=None, is_active=False):
     user = User.objects.create_user(
-        username=email,
+        username=username,
         email=email,
         password=random_password,
-        role="clinic_admin",
+        phone=phone,
+        role=role,
         clinic=clinic,
-        is_active=False
+        is_active=is_active
     )
     return user

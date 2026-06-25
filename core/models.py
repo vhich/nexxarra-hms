@@ -4,6 +4,8 @@ from django.core.validators import MinLengthValidator, RegexValidator, FileExten
 
 from django.conf import settings
 
+import uuid
+
 class SoftDeleteQuerySet(models.QuerySet):
     def delete(self):
         # Override delete to perform soft delete
@@ -31,7 +33,7 @@ class SoftDeleteManager(models.Manager):
 
 # Reusable validators for security and integrity
 phone_validator = RegexValidator(
-    regex=r'^\+?1?\d{9,13}$',
+    regex=r'^\d{9,15}$',
     message="Provide a valid phone number."
 )
 
@@ -47,22 +49,23 @@ allowed_docs_validator = FileExtensionValidator(
 )
 
 class Clinic(models.Model):
-    name = models.CharField(max_length=255, default="")
-    address = models.TextField(max_length=225, default="")
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, unique=True, default="", blank=False)
+    address = models.TextField(max_length=225, default="", blank=False)
     
     # Secure Phone: Validates actual phone formats, prevents injection strings
-    phone = models.CharField(max_length=20, validators=[phone_validator], default="")
-    email = models.EmailField(max_length=100, default="")
+    phone = models.CharField(max_length=20, validators=[phone_validator], default="", blank=False)
+    email = models.EmailField(max_length=100, unique=True, default="", blank=False)
 
     # Verification & compliance
-    license_number = models.CharField(max_length=100, unique=True, default="")
+    license_id = models.CharField(max_length=100, unique=True, default="", blank=False)
     
     # FORCE FRONTEND REQUIREMENT: Removed null=True and blank=True so frontend MUST provide them
     accreditation_certificate = models.FileField(
-        upload_to="clinic_docs/", 
+        upload_to="clinic_docs/",
         validators=[allowed_docs_validator],
-        blank=True,
-        null=True
+        blank=False,
+        default=""
     )
     
     # Strict Tax ID: Handled as string, but strictly validated for min/max length and digits only
@@ -70,14 +73,15 @@ class Clinic(models.Model):
         max_length=100, 
         unique=True,
         validators=[MinLengthValidator(13), numeric_only_validator],
-        default=""
+        default="",
+        blank=False
     )
     
     proof_of_address = models.FileField(
         upload_to="clinic_docs/",
         validators=[allowed_docs_validator],
-        blank=True,
-        null=True
+        blank=False,
+        default=""
     )
 
     # Internal verification (Keep blank/null here, frontend shouldn't touch these anyway)
@@ -100,7 +104,8 @@ class Department(models.Model):
     name = models.CharField(max_length=255)
 
 class User(AbstractUser):
-    clinic = models.ForeignKey("Clinic", on_delete=models.CASCADE, null=True, blank=True)
+    clinic = models.ForeignKey("Clinic", on_delete=models.CASCADE, default="", blank=False)
+    phone = models.CharField(max_length=20, validators=[phone_validator], default="", blank=False)
     role = models.CharField(max_length=50, choices=[
         ("super_admin", "Super Admin"),
         ("clinic_admin", "Clinic Admin"),

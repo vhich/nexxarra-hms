@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
+from django.utils.crypto import get_random_string
 
 from rest_framework import viewsets, views, status
 from rest_framework.views import APIView
@@ -11,11 +12,25 @@ from .serializers import ClinicSerializer
 
 from .models import Clinic
 
-from .services import create_clinic_admin
+from .services import create_user
 
-class ClinicViewSet(viewsets.ModelViewSet):
-    queryset = Clinic.objects.all_objects()  # include verified/unverified clinics
-    serializer_class = ClinicSerializer
+class RegisterClinicView(APIView):
+    def post(self, request):
+        serializer = ClinicSerializer(data=request.data)
+        if serializer.is_valid():
+            clinic = serializer.save()
+            return Response({
+                "message": "Clinic registered successfully!",
+                "clinic_id": str(clinic.id)
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class ListClinicsView(APIView):
+    def get(self, request):
+        clinics = Clinic.objects.all()
+        serializer = ClinicSerializer(clinics, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 
 User = get_user_model()
@@ -36,28 +51,41 @@ class ActivateUserView(views.APIView):
             user.save()
             return Response({"message": "Account activated successfully"}, status=status.HTTP_200_OK)
         return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class CreateClinicAdminView(APIView):
+    
+class RegisterClinicAdminView(APIView):
     def post(self, request):
+        username = request.data.get("username")
+        first_name = request.data.get("first_name")
+        last_name = request.data.get("last_name")
         email = request.data.get("email")
+        phone=request.data.get("phone")
         clinic_id = request.data.get("clinic_id")
-
-        if not email or not clinic_id:
-            return Response({"error": "Email and clinic_id are required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             clinic = Clinic.objects.get(id=clinic_id)
         except Clinic.DoesNotExist:
-            return Response({"error": "Clinic not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Invalid clinic ID"}, status=status.HTTP_404_NOT_FOUND)
+        
+        random_password = get_random_string(12)
 
-        user = create_clinic_admin(email, clinic)
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=random_password,
+            first_name=first_name,
+            last_name=last_name,
+            phone=phone,
+            role="clinic_admin",
+            clinic=clinic,
+            is_active=False,
+        )
 
         return Response({
-            "message": "Clinic admin created successfully",
+            "message": "Clinic Admin registered successfully, pending approval",
+            "username": user.username,
             "user_id": user.id,
+            "password": user.password,
             "email": user.email,
-            "role": user.role,
+            "clinic_id": str(clinic.id),
             "is_active": user.is_active,
-            "clinic_id": clinic_id,
         }, status=status.HTTP_201_CREATED)
