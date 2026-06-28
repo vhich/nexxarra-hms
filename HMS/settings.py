@@ -28,6 +28,8 @@ DEBUG = config('DEBUG', default=False, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost').split(',')
 
+PASSWORD_RESET_TIMEOUT = 8640
+
 
 # Application definition
 
@@ -111,6 +113,15 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 AUTH_USER_MODEL = 'core.User'
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.mailtrap.io"
+EMAIL_PORT = 2525
+EMAIL_HOST_USER = "d83e1b33d18b72"   # your Mailtrap username
+EMAIL_HOST_PASSWORD = "507e2679f01250"  # your Mailtrap password
+EMAIL_USE_TLS = True
+DEFAULT_FROM_EMAIL = "superadmin@Nexxarahms.com"
+# AUTH="PLAIN", "LOGIN" and "CRAM-MD5"
 
 
 # Internationalization

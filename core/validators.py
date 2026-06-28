@@ -2,7 +2,7 @@ from django.core.validators import RegexValidator, FileExtensionValidator
 
 phone_validator = RegexValidator(
     regex=r'^\d{9,15}$',
-    message="Provide a valid phone number (9–15 digits, may start with +)."
+    message="Provide a valid phone number (9–15 digits)."
 )
 
 numeric_only_validator = RegexValidator(

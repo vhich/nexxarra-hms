@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User, AbstractUser
+from django.db.models import Q
+
 from django.core.validators import MinLengthValidator, RegexValidator, FileExtensionValidator
 
 from django.conf import settings
@@ -85,7 +87,11 @@ class Clinic(models.Model):
     )
 
     # Internal verification (Keep blank/null here, frontend shouldn't touch these anyway)
-    verified = models.BooleanField(default=False)
+    status = models.CharField(max_length=50, choices=[
+        ("verify","Verified"),
+        ("rejected", "Rejected"),
+        ("pending", "Pending"),
+    ], default="Pending")
     verification_notes = models.TextField(blank=True, default="") # Better practice than null=True for TextField
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -104,7 +110,7 @@ class Department(models.Model):
     name = models.CharField(max_length=255)
 
 class User(AbstractUser):
-    clinic = models.ForeignKey("Clinic", on_delete=models.CASCADE, default="", blank=False)
+    clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE, default="", blank=False)
     phone = models.CharField(max_length=20, validators=[phone_validator], default="", blank=False)
     role = models.CharField(max_length=50, choices=[
         ("super_admin", "Super Admin"),
@@ -113,6 +119,14 @@ class User(AbstractUser):
         ("nurse", "Nurse"),
         ("receptionist", "Receptionist"),
     ])
+    feature_access_level = models.CharField(max_length=50, choices=[
+        ("limited", "Limited"),
+        ("full_access", "Full access"),
+    ], default="limited")
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["clinic", "role"], condition=Q(role="clinic_admin"), name="unique_clinic_admin")
+        ]
     # first_name, last_name, email, password already exist from AbstractUser
 
 class StaffProfile(models.Model):
