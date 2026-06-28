@@ -5,16 +5,14 @@ from django.contrib.auth.tokens import default_token_generator as token_generato
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 
-from rest_framework.permissions import BasePermission
+from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import views, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from .serializers import ClinicSerializer, ClinicAdminSerializer
-
+from .serializers import ClinicSerializer, ClinicAdminSerializer, CustomTokenObtainPairSerializer
 from .models import Clinic
-
-from .services import create_user
+from .permissions import IsClinicAdminFull, IsClinicAdminLimited
 
 
 User = get_user_model()
@@ -94,7 +92,7 @@ def send_activation_email(user):
         subject,
         message,
         "superadmin@Nexxarahms.com",
-        [user.email],
+        ["victoriamglorious@gmail.com"],
         fail_silently=False,
     )
 
@@ -179,3 +177,18 @@ class ResendActivationLinkView(views.APIView):
 
         return Response({"message": "Activation link resent successfully"}, status=status.HTTP_200_OK)
 
+class ClinicAdminLoginView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+class ClinicDashboardView(APIView):
+    permission_classes = [IsClinicAdminLimited | IsClinicAdminFull]
+
+    def get(self, request):
+        return Response({"message": "Welcome to the clinic dashboard"})
+
+# class PatientRecordsView(APIView):
+#     permission_classes = [IsClinicAdminFull | IsSuperAdmin]
+
+#     def get(self, request):
+#         return Response({"message": "Accessing patient records"})

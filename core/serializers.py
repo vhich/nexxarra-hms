@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework.exceptions import AuthenticationFailed
 
 from .models import Clinic, User
 from .validators import phone_validator, numeric_only_validator, allowed_docs_validator
@@ -11,7 +12,7 @@ from django.utils.crypto import get_random_string
 class ClinicAdminNestedSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "phone", "is_active"]
+        fields = ["id", "username", "email", "first_name", "last_name", "phone", "is_active", "feature_access_level"]
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -39,6 +40,7 @@ class ClinicSerializer(serializers.ModelSerializer):
             "accreditation_certificate",
             "phone",
             "proof_of_address",
+            "status",
             "clinic_admin"
         ]
 
@@ -86,7 +88,8 @@ class ClinicAdminSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone",
-            "clinic_id"
+            "clinic_id",
+            "feature_access_level"
         ]
 
     def validate_username(self, value):
@@ -140,33 +143,30 @@ class ClinicAdminSerializer(serializers.ModelSerializer):
         )
         return user
 
-class ClinicAdminLoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    default_error_messages = {
+        "invalid_credentials": "Invalid username or password.",
+        "inactive_account": "Your account is not active. Please activate via the email link."
+    }
 
-    def validate(self, data):
-        email = data.get("email")
-        password = data.get("password")
+    def validate(self, attrs):
+        username = attrs.get("username")
+        password = attrs.get("password")
 
-        user = authenticate(username=email, password=password)
-        if not user:
-            raise serializers.ValidationError("Invalid credentials")
-
-        if user.role != "clinic_admin":
-            raise serializers.ValidationError("Only clinic_admins can log in here")
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise AuthenticationFailed(self.error_messages["invalid_credentials"])
 
         if not user.is_active:
-            raise serializers.ValidationError("Account is not active. Please activate via email link.")
+            raise AuthenticationFailed(self.error_messages["inactive_account"])
+        user = authenticate(username=username, password=password)
+        if not user:
+            raise AuthenticationFailed(self.error_messages["invalid_credentials"])
 
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        return {
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "role": user.role,
-                "feature_access_level": user.feature_access_level,
-            }
-        }
+        data = super().validate(attrs)
+
+        # Add custom claims
+        data["role"] = self.user.role
+        data["feature_access_level"] = self.user.feature_access_level
+        return data
